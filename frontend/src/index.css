@@ -1,0 +1,136 @@
+/* ===========================
+   VELORA — Global Design System
+   =========================== */
+
+/* --- CSS Variables / Design Tokens --- */
+:root {
+  /* Background */
+  --bg-primary: #FEFEE3;
+  --bg-secondary: #EDE8E0;
+  --bg-card: rgba(255, 255, 255, 0.55);
+
+  /* Text */
+  --text-primary: #10100e;
+  --text-secondary: #6B6B6B;
+  --text-muted: #8E8E8E;
+  --text-heading: #10100e;
+
+  /* Accent */
+  --accent-sage: #26D862;
+  --accent-sage-hover: #1DB954;
+  --accent-sage-light: rgba(38, 216, 98, 0.12);
+
+  /* Gradient blob colors */
+  --blob-blue: rgba(173, 206, 237, 0.35);
+  --blob-peach: rgba(245, 200, 180, 0.3);
+  --blob-lavender: rgba(200, 185, 230, 0.3);
+
+  /* Shadows */
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.08);
+  --shadow-button: 0 2px 12px rgba(38, 216, 98, 0.25);
+  --shadow-button-hover: 0 4px 20px rgba(38, 216, 98, 0.35);
+
+  /* Typography */
+  --font-display: 'Zodiak Light', 'Zodiak', 'Georgia', serif;
+  --font-italic: 'Zodiak Italic', 'Zodiak', 'Georgia', serif;
+  --font-sans: 'General Sans', 'Inter', system-ui, -apple-system, sans-serif;
+  --font-button: 'Satoshi', 'General Sans', 'Inter', system-ui, -apple-system, sans-serif;
+  --font-nav: 'Switzer', 'General Sans', 'Inter', system-ui, -apple-system, sans-serif;
+  --font-serif: var(--font-sans);
+
+  /* Border */
+  --border-light: rgba(0, 0, 0, 0.06);
+
+  /* Transitions */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out-soft: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+/* --- Reset & Base --- */
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  font-family: var(--font-sans);
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  line-height: 1.6;
+  overflow-x: hidden;
+  min-height: 100vh;
+}
+
+#root {
+  width: 100%;
+  min-height: 100vh;
+  position: relative;
+  overflow: hidden;
+}
+
+/* --- Typography Base --- */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-serif);
+  color: var(--text-heading);
+  line-height: 1.15;
+  font-weight: 600;
+}
+
+p {
+  font-family: var(--font-sans);
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+em,
+i,
+.italic {
+  font-family: var(--font-italic);
+  font-style: italic;
+}
+
+[class*='card'],
+[class*='Card'] {
+  font-family: var(--font-sans);
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+  transition: color 0.3s var(--ease-out-soft);
+}
+
+/* --- Utility --- */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* --- Selection --- */
+::selection {
+  background: var(--accent-sage-light);
+  color: var(--text-heading);
+}
