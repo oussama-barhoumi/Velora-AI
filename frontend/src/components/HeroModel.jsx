@@ -4,28 +4,40 @@ import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import { createDisintegrationMaterial, addBarycentricCoords } from '../shaders/DisintegrationShader';
 
 gsap.registerPlugin(ScrollTrigger);
 
 /* ===========================
    Premium Material Enhancement
    =========================== */
-function enhanceMaterials(scene) {
+function enhanceMaterials(scene, materialsRef) {
+  materialsRef.current = [];
+
+  scene.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(scene);
+  const minY = box.min.y;
+  const heightY = box.max.y - box.min.y;
+
   scene.traverse((child) => {
     if (!child.isMesh || !child.material) return;
 
-    // Ensure MeshStandardMaterial or MeshPhysicalMaterial
-    if (
-      !(child.material instanceof THREE.MeshStandardMaterial) &&
-      !(child.material instanceof THREE.MeshPhysicalMaterial)
-    ) {
-      child.material = new THREE.MeshPhysicalMaterial();
+    // Clone geometry to prevent mutating shared useGLTF cache and breaking WebGLRenderer VAO state
+    let geom = child.geometry.clone();
+    if (geom.index) {
+      geom = geom.toNonIndexed();
     }
+    addBarycentricCoords(geom);
+    if (!geom.attributes.normal) {
+      geom.computeVertexNormals();
+    }
+    child.geometry = geom;
 
-    const mat = child.material;
+    // Create premium MeshPhysicalMaterial for ultra-realistic Apple-quality PBR lighting & reflections
+    const mat = new THREE.MeshPhysicalMaterial({ transparent: true });
     mat.needsUpdate = true;
 
-    const name = mat.name.toLowerCase();
+    const name = child.material.name.toLowerCase();
     const meshName = child.name.toLowerCase();
 
     const isEye = name.includes('material_12') || meshName.includes('eye');
@@ -36,41 +48,31 @@ function enhanceMaterials(scene) {
     const isChrome = name.includes('chrome') || meshName.includes('chrome');
 
     if (isEye) {
-      // Vivid green glow (brand color)
       mat.color.set('#26D862');
       mat.emissive.set('#26D862');
       mat.emissiveIntensity = 2.0;
       mat.metalness = 0.0;
       mat.roughness = 0.0;
-      mat.transparent = true;
       mat.opacity = 0.95;
-
     } else if (isCable) {
-      // Deep green wires (brand color)
       mat.color.set('#26D862');
-      mat.emissive.set('#1DB954'); // Slightly darker green for cable depth
+      mat.emissive.set('#1DB954');
       mat.emissiveIntensity = 0.7;
       mat.metalness = 0.6;
       mat.roughness = 0.3;
-
     } else if (isGold) {
-      // Warm brushed gold
       mat.color.set('#c8961e');
       mat.emissive.set('#7a5000');
       mat.emissiveIntensity = 0.2;
       mat.metalness = 1.0;
       mat.roughness = 0.25;
       mat.envMapIntensity = 2.0;
-
     } else if (isChrome) {
-      // Mirror chrome
       mat.color.set('#e8e8e8');
       mat.metalness = 1.0;
       mat.roughness = 0.05;
       mat.envMapIntensity = 2.5;
-
     } else if (isFace) {
-      // Cool polished titanium-silver face
       mat.color.set('#cfd8e3');
       mat.emissive.set('#0d1a2a');
       mat.emissiveIntensity = 0.05;
@@ -79,9 +81,7 @@ function enhanceMaterials(scene) {
       mat.clearcoat = 1.0;
       mat.clearcoatRoughness = 0.02;
       mat.envMapIntensity = 2.0;
-
     } else if (isBlack) {
-      // Satin matte black with subtle sheen
       mat.color.set('#0d0d0d');
       mat.emissive.set('#050505');
       mat.emissiveIntensity = 0.03;
@@ -90,9 +90,7 @@ function enhanceMaterials(scene) {
       mat.clearcoat = 0.5;
       mat.clearcoatRoughness = 0.15;
       mat.envMapIntensity = 1.0;
-
     } else {
-      // Default: dark gunmetal
       mat.color.set('#1c2128');
       mat.metalness = 0.6;
       mat.roughness = 0.45;
@@ -100,6 +98,99 @@ function enhanceMaterials(scene) {
       mat.clearcoatRoughness = 0.2;
       mat.envMapIntensity = 1.2;
     }
+
+    // Inject Disintegration Shader logic directly into MeshPhysicalMaterial via onBeforeCompile!!!
+    mat.onBeforeCompile = (shader) => {
+      shader.uniforms.uProgress = { value: 0.0 };
+      shader.uniforms.uTime = { value: 0.0 };
+      shader.uniforms.uMinY = { value: minY };
+      shader.uniforms.uHeightY = { value: heightY };
+      shader.uniforms.uLineColor = { value: new THREE.Color('#26D862') };
+      shader.uniforms.uLineWidth = { value: 1.5 };
+      shader.uniforms.uScanlineWidth = { value: 0.12 };
+
+      materialsRef.current.push(shader.uniforms);
+
+      // Vertex Shader Injection
+      shader.vertexShader = shader.vertexShader.replace(
+        '#include <common>',
+        `#include <common>
+        attribute vec3 aBarycentric;
+        uniform float uProgress;
+        uniform float uTime;
+        uniform float uMinY;
+        uniform float uHeightY;
+        varying vec3 vBarycentric;
+        varying float vNormalizedY;
+        varying float vYPosition;`
+      );
+
+      shader.vertexShader = shader.vertexShader.replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+        vBarycentric = aBarycentric;
+        vYPosition = position.y;
+        float h = uHeightY > 0.001 ? uHeightY : 3.0;
+        float m = uHeightY > 0.001 ? uMinY : -1.5;
+        vNormalizedY = clamp((position.y - m) / h, 0.0, 1.0);
+
+        float edgeGlow = smoothstep(0.0, 0.1, abs(vNormalizedY - uProgress));
+        edgeGlow = 1.0 - edgeGlow;
+        transformed += normal * edgeGlow * 0.02 * uProgress;`
+      );
+
+      // Fragment Shader Injection
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <common>',
+        `#include <common>
+        uniform float uProgress;
+        uniform float uTime;
+        uniform vec3 uLineColor;
+        uniform float uLineWidth;
+        uniform float uScanlineWidth;
+        varying vec3 vBarycentric;
+        varying float vNormalizedY;
+        varying float vYPosition;
+
+        float wireframe(vec3 bary, float width) {
+          vec3 d = fwidth(bary);
+          vec3 a3 = smoothstep(d * (width - 0.5), d * (width + 0.5), bary);
+          return min(min(a3.x, a3.y), a3.z);
+        }`
+      );
+
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <dithering_fragment>',
+        `#include <dithering_fragment>
+
+        float scanlinePos = 1.0 - uProgress;
+        float waveHalf = uScanlineWidth * 0.5;
+        float dist = vNormalizedY - scanlinePos;
+
+        float behindWave = smoothstep(-waveHalf, waveHalf, dist);
+        float inWave = 1.0 - smoothstep(0.0, waveHalf * 2.0, abs(dist));
+
+        float wire = wireframe(vBarycentric, uLineWidth);
+
+        if (behindWave > 0.99 && uProgress > 0.01) {
+          if (wire > 0.5) {
+            discard;
+          }
+          vec3 neonEdge = uLineColor * (1.2 + sin(uTime * 4.0 + vYPosition * 8.0) * 0.15);
+          float fade = 1.0 - smoothstep(0.0, 0.6, dist - waveHalf);
+          float edgeAlpha = (1.0 - wire) * max(fade, 0.6);
+          gl_FragColor = vec4(neonEdge, edgeAlpha);
+        } else if (inWave > 0.01 && uProgress > 0.01) {
+          float wireEdge = 1.0 - wire;
+          vec3 scanGlow = uLineColor * (2.0 + sin(uTime * 6.0 + vYPosition * 12.0) * 0.5);
+          vec3 transitionColor = mix(gl_FragColor.rgb, scanGlow, inWave * behindWave);
+          transitionColor = mix(transitionColor, uLineColor * 1.8, wireEdge * inWave * 0.7);
+          gl_FragColor = vec4(transitionColor, gl_FragColor.a);
+        }`
+      );
+    };
+
+    child.material = mat;
   });
 }
 
@@ -182,10 +273,12 @@ function FloatingModel({ url }) {
   const { scene } = useGLTF(url);
   const mouse = useRef({ x: 0, y: 0 });
   const scrollProgress = useRef({ value: 0 });
+  const disintProgress = useRef({ value: 0 });
+  const shaderMaterialsRef = useRef([]);
 
   const clonedScene = useMemo(() => {
     const clone = scene.clone(true);
-    enhanceMaterials(clone);
+    enhanceMaterials(clone, shaderMaterialsRef);
     return clone;
   }, [scene]);
 
@@ -211,9 +304,10 @@ function FloatingModel({ url }) {
     return () => window.removeEventListener('mousemove', onMove);
   }, []);
 
-  // Scroll-driven rotation
+  // Scroll-driven rotation & disintegration
   useEffect(() => {
     const ctx = gsap.context(() => {
+      // 1. Existing scroll rotation
       gsap.to(scrollProgress.current, {
         value: 1,
         ease: 'none',
@@ -224,6 +318,18 @@ function FloatingModel({ url }) {
           scrub: 1.5,
         },
       });
+
+      // 2. Disintegration progress synced with ScrollStorySection
+      gsap.to(disintProgress.current, {
+        value: 1,
+        ease: 'none',
+        scrollTrigger: {
+          trigger: '.velora-scroll-story',
+          start: 'top bottom',
+          end: 'top 45%', // Fully wireframe by the time the green signal line emerges!
+          scrub: 1,
+        },
+      });
     });
     return () => ctx.revert();
   }, []);
@@ -231,6 +337,15 @@ function FloatingModel({ url }) {
   useFrame((state) => {
     if (!groupRef.current) return;
     const t = state.clock.getElapsedTime();
+    const p = disintProgress.current.value;
+
+    // Update all shader materials
+    shaderMaterialsRef.current.forEach((mat) => {
+      if (mat && mat.uniforms) {
+        mat.uniforms.uTime.value = t;
+        mat.uniforms.uProgress.value = p;
+      }
+    });
 
     // Gentle float
     groupRef.current.position.y = Math.sin(t * 0.8) * 0.12;

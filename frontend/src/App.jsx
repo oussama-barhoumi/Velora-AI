@@ -3,6 +3,7 @@ import Lenis from 'lenis';
 import './App.css';
 import Navbar from './components/Navbar';
 import HeroSection from './components/HeroSection';
+import ScrollStorySection from './components/ScrollStorySection';
 
 function App() {
   const cursorRef = useRef(null);
@@ -68,6 +69,7 @@ function App() {
       {/* Hero / Welcome Section */}
       <main>
         <HeroSection />
+        <ScrollStorySection />
       </main>
     </>
   );

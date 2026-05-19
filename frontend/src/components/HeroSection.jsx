@@ -191,10 +191,6 @@ export default function HeroSection() {
     >
       <div className="velora-hero__inner">
         <div className="velora-hero__content">
-          <div className="velora-hero__eyebrow velora-reveal">
-            AI Powered
-          </div>
-
           <h1 className="velora-hero__headline velora-reveal">
             Your AI <em>Career</em> Agent
           </h1>
