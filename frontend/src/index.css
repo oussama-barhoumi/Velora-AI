@@ -10,10 +10,10 @@
   --bg-card: rgba(255, 255, 255, 0.55);
 
   /* Text */
-  --text-primary: #10100e;
+  --text-primary: #302721;
   --text-secondary: #6B6B6B;
   --text-muted: #8E8E8E;
-  --text-heading: #10100e;
+  --text-heading: #302721;
 
   /* Accent */
   --accent-sage: #26D862;
@@ -33,12 +33,8 @@
   --shadow-button-hover: 0 4px 20px rgba(38, 216, 98, 0.35);
 
   /* Typography */
-  --font-display: 'Zodiak Light', 'Zodiak', 'Georgia', serif;
-  --font-italic: 'Zodiak Italic', 'Zodiak', 'Georgia', serif;
-  --font-sans: 'General Sans', 'Inter', system-ui, -apple-system, sans-serif;
-  --font-button: 'Satoshi', 'General Sans', 'Inter', system-ui, -apple-system, sans-serif;
-  --font-nav: 'Switzer', 'General Sans', 'Inter', system-ui, -apple-system, sans-serif;
-  --font-serif: var(--font-sans);
+  --font-serif: 'Cormorant Garamond', 'Playfair Display', 'Georgia', serif;
+  --font-sans: 'Satoshi', 'Inter', system-ui, -apple-system, sans-serif;
 
   /* Border */
   --border-light: rgba(0, 0, 0, 0.06);
@@ -98,18 +94,6 @@ p {
   font-family: var(--font-sans);
   color: var(--text-secondary);
   line-height: 1.7;
-}
-
-em,
-i,
-.italic {
-  font-family: var(--font-italic);
-  font-style: italic;
-}
-
-[class*='card'],
-[class*='Card'] {
-  font-family: var(--font-sans);
 }
 
 a {

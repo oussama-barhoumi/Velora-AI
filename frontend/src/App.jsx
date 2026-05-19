@@ -4,6 +4,8 @@ import './App.css';
 import Navbar from './components/Navbar';
 import HeroSection from './components/HeroSection';
 import ScrollStorySection from './components/ScrollStorySection';
+import FeatureScrollSection from './components/FeatureScrollSection';
+
 
 function App() {
   const cursorRef = useRef(null);
@@ -70,6 +72,7 @@ function App() {
       <main>
         <HeroSection />
         <ScrollStorySection />
+        <FeatureScrollSection />
       </main>
     </>
   );
