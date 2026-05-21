@@ -4,7 +4,9 @@ import './App.css';
 import Navbar from './components/Navbar';
 import HeroSection from './components/HeroSection';
 import ScrollStorySection from './components/ScrollStorySection';
+import RobotScrollSection from './components/RobotScrollSection';
 import FeatureScrollSection from './components/FeatureScrollSection';
+
 
 
 function App() {
@@ -73,6 +75,8 @@ function App() {
         <HeroSection />
         <ScrollStorySection />
         <FeatureScrollSection />
+        <RobotScrollSection />
+
       </main>
     </>
   );

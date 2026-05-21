@@ -644,3 +644,279 @@ main {
     height: 18px;
   }
 }
+
+/* ============================================================
+   ROBOT SCROLL SECTION  (rs-*)
+   Cinematic, scroll-pinned, light cream premium aesthetic
+   ============================================================ */
+
+/* 1 ── Outer scroll space – defines how long the pin lasts */
+.rs-wrap {
+  position: relative;
+  width: 100%;
+  /* 4 steps × 100vh + 1 extra screen to buffer the last card */
+  min-height: 500vh;
+  background: #fefee3; /* light cream background requested */
+}
+
+/* 2 ── Pinned viewport – stays fixed while .rs-wrap scrolls */
+.rs-pin {
+  position: relative;   /* GSAP will switch this to sticky internally */
+  top: 0;
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+  background: #fefee3;
+  display: grid;
+  /* robot takes the whole screen; text panel floats on top-right */
+  grid-template-columns: 1fr;
+}
+
+/* 3 ── Ambient rings behind robot */
+.rs-bg-ring {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  animation: rsPulse 6s ease-in-out infinite;
+}
+
+.rs-ring-1 {
+  width: min(520px, 72vw);
+  height: min(520px, 72vw);
+  animation-delay: 0s;
+}
+
+.rs-ring-2 {
+  width: min(720px, 96vw);
+  height: min(720px, 96vw);
+  opacity: 0.45;
+  animation-delay: -3s;
+}
+
+@keyframes rsPulse {
+  0%, 100% { opacity: 0.25; transform: translate(-50%, -50%) scale(1); }
+  50%       { opacity: 0.55; transform: translate(-50%, -50%) scale(1.04); }
+}
+
+/* 4 ── Canvas – fills the whole pinned viewport */
+.rs-canvas-wrap {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+/* Ensure R3F canvas fills its container */
+.rs-canvas-wrap canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* 5 ── Loader / spinner shown before GLB is ready */
+.rs-loader {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fefee3;
+  z-index: 2;
+}
+
+.rs-spinner {
+  width: 44px;
+  height: 44px;
+  border: 3px solid rgba(0, 0, 0, 0.05);
+  border-top-color: #26D862;
+  border-radius: 50%;
+  animation: rsSpin 0.75s linear infinite;
+}
+
+@keyframes rsSpin {
+  to { transform: rotate(360deg); }
+}
+
+/* 6 ── Text panel – right-aligned, sits above canvas */
+.rs-text-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10;
+  width: min(520px, 46vw);
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+  padding: 0 6% 0 4%;
+  box-sizing: border-box;
+}
+
+/* 7 ── Each text block stacks in the same spot (all absolute) */
+.rs-text-block {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  transform: translateY(-50%);
+  padding: 0 6% 0 4%;
+  box-sizing: border-box;
+  /* GSAP controls opacity + y; start hidden */
+  opacity: 0;
+  will-change: transform, opacity;
+}
+
+/* 8 ── Typography */
+.rs-tag {
+  display: inline-block;
+  font-family: var(--font-sans, 'Satoshi', sans-serif);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  border: 1px solid;
+  border-radius: 999px;
+  padding: 4px 14px;
+  margin-bottom: 22px;
+}
+
+.rs-title {
+  font-family: var(--font-serif, 'Cormorant Garamond', Georgia, serif);
+  font-size: clamp(2.4rem, 4.8vw, 5rem);
+  font-weight: 300;
+  line-height: 1.05;
+  letter-spacing: -0.025em;
+  color: #111827; /* dark charcoal */
+  margin: 0 0 22px;
+}
+
+.rs-body {
+  font-family: var(--font-sans, 'Satoshi', sans-serif);
+  font-size: clamp(1rem, 1.3vw, 1.2rem);
+  line-height: 1.65;
+  color: #4b5563; /* soft dark gray */
+  max-width: 420px;
+  margin: 0;
+}
+
+/* 9 ── Accent underline */
+.rs-line {
+  width: 52px;
+  height: 2px;
+  border-radius: 2px;
+  margin-top: 30px;
+  transition: background-color 0.6s ease;
+}
+
+/* 10 ── Scroll hint (bottom-centre, auto-fades via animation) */
+.rs-scroll-hint {
+  position: absolute;
+  bottom: 36px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  animation: rsHintFade 4s ease-in-out 1.5s forwards;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.rs-scroll-hint span {
+  font-family: var(--font-sans, sans-serif);
+  font-size: 0.65rem;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: rgba(0, 0, 0, 0.45);
+}
+
+.rs-scroll-arrow {
+  width: 1px;
+  height: 36px;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.35), transparent);
+  animation: rsArrowBob 1.4s ease-in-out infinite;
+}
+
+@keyframes rsHintFade {
+  0%   { opacity: 0; }
+  15%  { opacity: 1; }
+  75%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes rsArrowBob {
+  0%, 100% { transform: scaleY(1);   opacity: 0.8; }
+  50%       { transform: scaleY(0.5); opacity: 0.3; }
+}
+
+/* ── Responsive ─────────────────────────────────────────── */
+
+/* Tablet: text panel drops to bottom quarter */
+@media (max-width: 1024px) {
+  .rs-text-panel {
+    width: 100%;
+    top: auto;
+    bottom: 0;
+    height: 42vh;
+    padding: 0 6%;
+    align-items: flex-start;
+    background: linear-gradient(to top, #fefee3 55%, transparent);
+  }
+
+  .rs-text-block {
+    top: auto;
+    bottom: 0;
+    transform: none;
+    padding: 28px 6% 24px;
+  }
+
+  .rs-title {
+    font-size: clamp(2rem, 6vw, 3rem);
+    margin-bottom: 12px;
+  }
+
+  .rs-body {
+    font-size: 0.95rem;
+    max-width: 100%;
+  }
+
+  .rs-ring-1 { width: 70vw; height: 70vw; }
+  .rs-ring-2 { width: 92vw; height: 92vw; }
+}
+
+/* Mobile */
+@media (max-width: 640px) {
+  .rs-wrap { min-height: 600vh; }
+
+  .rs-text-panel {
+    height: 48vh;
+    padding: 0 20px;
+  }
+
+  .rs-text-block {
+    padding: 20px 20px 18px;
+  }
+
+  .rs-title {
+    font-size: 2.1rem;
+    margin-bottom: 10px;
+  }
+
+  .rs-body {
+    font-size: 0.92rem;
+    line-height: 1.55;
+  }
+
+  .rs-tag {
+    margin-bottom: 14px;
+  }
+
+  .rs-line {
+    margin-top: 18px;
+  }
+}
