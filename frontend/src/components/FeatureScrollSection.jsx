@@ -417,7 +417,7 @@ const css = {
     margin: 0,
   },
   heading: {
-    fontFamily: "'Cormorant Garamond', Georgia, serif",
+    fontFamily: "'Satoshi', sans-serif",
     fontSize: 'clamp(2.4rem, 4vw, 4rem)',
     fontWeight: 600,
     lineHeight: 1.05,
@@ -446,7 +446,7 @@ const css = {
     minWidth: '24px',
   },
   stepTitle: {
-    fontFamily: "'Cormorant Garamond', Georgia, serif",
+    fontFamily: "'Satoshi', sans-serif",
     fontSize: 'clamp(1.5rem, 2.5vw, 2.1rem)',
     fontWeight: 600,
     color: '#3a332d',

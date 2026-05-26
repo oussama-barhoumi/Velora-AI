@@ -1,23 +1,25 @@
 /**
- * RobotScrollSection — production-ready
- * ──────────────────────────────────────
- * Fixes applied vs previous version:
- *  ✓ useGLTF called at component top-level (Rules of Hooks)
- *  ✓ ErrorBoundary catches GLB load failures gracefully
- *  ✓ GSAP pin uses correct API (trigger + pin same element)
- *  ✓ Sequential text: fade-in → hold → fade-out per step
- *  ✓ scrollProg ref shared with R3F via closure (no re-renders)
- *  ✓ Full cleanup on unmount
+ * RobotScrollSection — materials match HeroModel exactly
+ * ────────────────────────────────────────────────────────
+ * ✓ Same SceneEnvironment (PMREM studio map)
+ * ✓ Same enhanceMaterials logic (MeshPhysicalMaterial per mesh type)
+ * ✓ Same lighting rig (ambient + key + fill + rim + hemisphere)
+ * ✓ Same ACES tone mapping / exposure 1.1
+ * ✓ Scroll-driven color cycling on eye/cable glow materials
+ * ✓ Mouse-parallax tilt + floating bob
+ * ✓ Image fallback when GLB fails (ErrorBoundary)
  */
 
-import { useEffect, useRef, Suspense, useMemo, Component } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
-import { useGLTF, Environment, ContactShadows } from '@react-three/drei';
+import { useEffect, useRef, Suspense, useMemo, Component, useState } from 'react';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { useGLTF, ContactShadows } from '@react-three/drei';
 import * as THREE from 'three';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 
 gsap.registerPlugin(ScrollTrigger);
+
+const GLB_URL = '/3d-model/robo_face.glb';
 
 /* ─── Step data ──────────────────────────────────────────── */
 const STEPS = [
@@ -33,226 +35,210 @@ const STEPS = [
     tag: '02',
     title: 'Better job matches',
     body: 'Semantic AI cross-references your skills, values, and ambitions to surface roles you would never have found alone.',
-    accent: '#00F2FE',
+    accent: '#26D862',
   },
   {
     cls: 'rs-t3',
     tag: '03',
     title: 'Increase hiring chances',
     body: 'CVs tailored to each individual job description receive a 3× higher callback rate from hiring managers.',
-    accent: '#FF007F',
+    accent: '#26D862',
   },
   {
     cls: 'rs-t4',
     tag: '04',
     title: 'ATS optimised CV',
     body: 'Never get filtered out by robots. Your resume is automatically tuned to pass every Applicant Tracking System.',
-    accent: '#FFD700',
+    accent: '#26D862',
   },
 ];
 
-/* ─── Error boundary for the Canvas ─────────────────────── */
-class CanvasErrorBoundary extends Component {
-  constructor(props) {
-    super(props);
-    this.state = { hasError: false };
-  }
-  static getDerivedStateFromError() {
-    return { hasError: true };
-  }
-  render() {
-    if (this.state.hasError) return <FallbackCanvas scrollProg={this.props.scrollProg} />;
-    return this.props.children;
-  }
-}
+/* ─── Identical to HeroModel's SceneEnvironment ─────────── */
+function SceneEnvironment() {
+  const { gl, scene } = useThree();
 
-/* ─── Fallback (no GLB) ──────────────────────────────────── */
-function FallbackMesh({ scrollProg }) {
-  const groupRef = useRef();
-  const mouse = useRef({ x: 0, y: 0 });
-  const pointLightRef = useRef();
+  const envMap = useMemo(() => {
+    const pmrem = new THREE.PMREMGenerator(gl);
+    pmrem.compileEquirectangularShader();
 
-  const stepColors = useMemo(() => {
-    return STEPS.map((s) => new THREE.Color(s.accent));
-  }, []);
+    const W = 256, H = 128;
+    const data = new Float32Array(W * H * 4);
 
-  const eyeMaterial = useMemo(() => {
-    return new THREE.MeshStandardMaterial({
-      color: new THREE.Color('#26D862'),
-      emissive: new THREE.Color('#26D862'),
-      emissiveIntensity: 3,
-    });
-  }, []);
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const i = (y * W + x) * 4;
+        const ny = y / H;
+
+        let r, g, b;
+        if (ny < 0.45) {
+          const t = ny / 0.45;
+          r = THREE.MathUtils.lerp(1.4, 0.9, t);
+          g = THREE.MathUtils.lerp(1.35, 0.88, t);
+          b = THREE.MathUtils.lerp(1.3, 0.85, t);
+        } else if (ny < 0.55) {
+          const t = (ny - 0.45) / 0.1;
+          r = THREE.MathUtils.lerp(0.9, 0.05, t);
+          g = THREE.MathUtils.lerp(0.88, 0.05, t);
+          b = THREE.MathUtils.lerp(0.85, 0.06, t);
+        } else {
+          r = g = b = 0.04;
+        }
+
+        // Subtle blue accent strip
+        const nx = x / W;
+        if (nx > 0.62 && nx < 0.70 && ny < 0.5) {
+          g += 0.15;
+          b += 0.55;
+        }
+
+        data[i] = r;
+        data[i + 1] = g;
+        data[i + 2] = b;
+        data[i + 3] = 1.0;
+      }
+    }
+
+    const tex = new THREE.DataTexture(data, W, H, THREE.RGBAFormat, THREE.FloatType);
+    tex.mapping = THREE.EquirectangularReflectionMapping;
+    tex.needsUpdate = true;
+
+    const rt = pmrem.fromEquirectangular(tex);
+    tex.dispose();
+    pmrem.dispose();
+    return rt.texture;
+  }, [gl]);
 
   useEffect(() => {
-    const onMove = (e) => {
-      mouse.current.x = (e.clientX / window.innerWidth - 0.5) * 2;
-      mouse.current.y = -(e.clientY / window.innerHeight - 0.5) * 2;
-    };
-    window.addEventListener('mousemove', onMove, { passive: true });
-    return () => window.removeEventListener('mousemove', onMove);
-  }, []);
+    scene.environment = envMap;
+    return () => { scene.environment = null; };
+  }, [envMap, scene]);
 
-  useFrame(({ clock }) => {
-    if (!groupRef.current) return;
-    const t = clock.getElapsedTime();
-    groupRef.current.position.y = Math.sin(t * 0.9) * 0.1 - 0.45;
-    const ty = mouse.current.x * 0.2 + scrollProg.current * Math.PI * 1.5;
-    const tx = mouse.current.y * 0.14;
-    groupRef.current.rotation.y = THREE.MathUtils.lerp(groupRef.current.rotation.y, ty, 0.05);
-    groupRef.current.rotation.x = THREE.MathUtils.lerp(groupRef.current.rotation.x, tx, 0.05);
+  return null;
+}
 
-    // Smoothly transition colors based on scroll progress
-    const p = Math.max(0, Math.min(0.999, scrollProg.current)) * (stepColors.length - 1);
-    const idx1 = Math.floor(p);
-    const idx2 = idx1 + 1;
-    const fraction = p - idx1;
+/* ─── Same material classification as HeroModel ─────────── */
+function buildMaterials(scene, glowMatsRef) {
+  const glows = [];
 
-    const activeColor = new THREE.Color();
-    activeColor.lerpColors(stepColors[idx1], stepColors[idx2], fraction);
+  scene.traverse((child) => {
+    if (!child.isMesh || !child.material) return;
 
-    eyeMaterial.color.copy(activeColor);
-    eyeMaterial.emissive.copy(activeColor);
+    child.castShadow = true;
+    child.receiveShadow = true;
 
-    if (pointLightRef.current) {
-      pointLightRef.current.color.copy(activeColor);
+    const name = (child.material.name || '').toLowerCase();
+    const meshName = (child.name || '').toLowerCase();
+
+    const isEye = name.includes('material_12') || meshName.includes('eye');
+    const isCable = name.includes('wire') || meshName.includes('wire');
+    const isFace = name.includes('face') || meshName.includes('face') || meshName.includes('head_front');
+    const isBlack = name.includes('skull') || name.includes('neck') || name.includes('back');
+    const isGold = name.includes('gold') || meshName.includes('gold');
+    const isChrome = name.includes('chrome') || meshName.includes('chrome');
+
+    const orig = child.material;
+    const mat = new THREE.MeshPhysicalMaterial({ transparent: true });
+
+    if (isEye) {
+      mat.color.set('#26D862');
+      mat.emissive.set('#26D862');
+      mat.emissiveIntensity = 2.0;
+      mat.metalness = 0.0;
+      mat.roughness = 0.0;
+      mat.opacity = 0.95;
+      glows.push(mat);
+
+    } else if (isCable) {
+      mat.color.set('#26D862');
+      mat.emissive.set('#1DB954');
+      mat.emissiveIntensity = 0.7;
+      mat.metalness = 0.6;
+      mat.roughness = 0.3;
+      glows.push(mat);
+
+    } else if (isGold) {
+      mat.color.set('#c8961e');
+      mat.emissive.set('#7a5000');
+      mat.emissiveIntensity = 0.2;
+      mat.metalness = 1.0;
+      mat.roughness = 0.25;
+      mat.envMapIntensity = 2.0;
+
+    } else if (isChrome) {
+      mat.color.set('#e8e8e8');
+      mat.metalness = 1.0;
+      mat.roughness = 0.05;
+      mat.envMapIntensity = 2.5;
+
+    } else if (isFace) {
+      mat.color.set('#cfd8e3');
+      mat.emissive.set('#0d1a2a');
+      mat.emissiveIntensity = 0.05;
+      mat.metalness = 0.92;
+      mat.roughness = 0.1;
+      mat.clearcoat = 1.0;
+      mat.clearcoatRoughness = 0.02;
+      mat.envMapIntensity = 2.0;
+
+    } else if (isBlack) {
+      mat.color.set('#0d0d0d');
+      mat.emissive.set('#050505');
+      mat.emissiveIntensity = 0.03;
+      mat.metalness = 0.4;
+      mat.roughness = 0.55;
+      mat.clearcoat = 0.5;
+      mat.clearcoatRoughness = 0.15;
+      mat.envMapIntensity = 1.0;
+
+    } else {
+      // luminance-based fallback
+      const r = orig.color?.r ?? 0.5;
+      const g = orig.color?.g ?? 0.5;
+      const b = orig.color?.b ?? 0.5;
+      const lum = r * 0.299 + g * 0.587 + b * 0.114;
+
+      if (lum < 0.40) {
+        mat.color.set('#1c2128');
+        mat.metalness = 0.6;
+        mat.roughness = 0.45;
+        mat.clearcoat = 0.3;
+        mat.clearcoatRoughness = 0.2;
+        mat.envMapIntensity = 1.2;
+      } else {
+        // light / ceramic parts
+        mat.color.set('#cfd8e3');
+        mat.metalness = 0.92;
+        mat.roughness = 0.1;
+        mat.clearcoat = 1.0;
+        mat.clearcoatRoughness = 0.02;
+        mat.envMapIntensity = 2.0;
+      }
     }
+
+    // Preserve maps from original
+    mat.map = orig.map ?? null;
+    mat.normalMap = orig.normalMap ?? null;
+    child.material = mat;
   });
 
-  return (
-    <group ref={groupRef} scale={0.7}>
-      <mesh castShadow>
-        <boxGeometry args={[1.4, 1.8, 1.4]} />
-        <meshPhysicalMaterial color="#ffffff" metalness={0.1} roughness={0.2} clearcoat={1.0} />
-      </mesh>
-      {[[-0.32, 0.3, 0.71], [0.32, 0.3, 0.71]].map(([x, y, z], i) => (
-        <mesh key={i} position={[x, y, z]} material={eyeMaterial}>
-          <sphereGeometry args={[0.13, 16, 16]} />
-        </mesh>
-      ))}
-      <pointLight ref={pointLightRef} position={[0, -2, 3]} intensity={1.8} />
-    </group>
-  );
+  glowMatsRef.current = glows;
 }
 
-function FallbackCanvas({ scrollProg }) {
-  return (
-    <Canvas camera={{ position: [0, 0, 4.2], fov: 42 }} dpr={[1, 1.5]}
-      gl={{ antialias: true, alpha: true }}>
-      <ambientLight intensity={0.4} />
-      <directionalLight position={[4, 8, 4]} intensity={2} />
-      <FallbackMesh scrollProg={scrollProg} />
-    </Canvas>
-  );
-}
-
-/* ─── GLB model (unconditional hook — correct) ───────────── */
+/* ─── GLB Scene ──────────────────────────────────────────── */
 function GLBScene({ scrollProg }) {
   const groupRef = useRef();
   const mouse = useRef({ x: 0, y: 0 });
-  const { scene } = useGLTF('/3d-model/robo_face.glb');
-  const glowMaterials = useRef([]);
-  const pointLightRef = useRef();
+  const glowMatsRef = useRef([]);
+  const { scene } = useGLTF(GLB_URL);
 
-  const stepColors = useMemo(() => {
-    return STEPS.map((s) => new THREE.Color(s.accent));
-  }, []);
+  const stepColors = useMemo(() =>
+    STEPS.map(s => new THREE.Color(s.accent)), []);
 
   const cloned = useMemo(() => {
     const clone = scene.clone(true);
-    const glows = [];
+    buildMaterials(clone, glowMatsRef);
 
-    clone.traverse((child) => {
-      if (!child.isMesh || !child.material) return;
-      const orig = child.material;
-      const nm = (orig.name || '').toLowerCase();
-      const mn = (child.name || '').toLowerCase();
-
-      // Eye sockets — soft mint glow
-      const isEye =
-        nm.includes('eye') || mn.includes('eye');
-
-      // Neon cables / tubes / wires — vivid green
-      const isCable =
-        nm.includes('glow') || nm.includes('neon') || nm.includes('cable') ||
-        nm.includes('wire') || nm.includes('tube') ||
-        mn.includes('glow') || mn.includes('neon') || mn.includes('cable') ||
-        mn.includes('wire') || mn.includes('tube') ||
-        (!isEye && orig.emissive && orig.emissive.r + orig.emissive.g + orig.emissive.b > 0.01);
-
-      const isGlow = isEye || isCable;
-
-      child.castShadow    = true;
-      child.receiveShadow = true;
-
-      if (isEye) {
-        // ── Soft mint eye glow ────────────────────────────────
-        const mat = new THREE.MeshPhysicalMaterial({
-          color:             new THREE.Color('#7dffc0'),
-          emissive:          new THREE.Color('#7dffc0'),
-          emissiveIntensity: 1.6,
-          metalness: 0,
-          roughness: 0.08,
-          transparent: orig.transparent ?? false,
-          opacity:     orig.opacity    ?? 1,
-        });
-        child.material = mat;
-        glows.push(mat);
-
-      } else if (isCable) {
-        // ── Vivid green neon (cables / tubes) ────────────────
-        const mat = new THREE.MeshPhysicalMaterial({
-          color:             new THREE.Color('#26D862'),
-          emissive:          new THREE.Color('#26D862'),
-          emissiveIntensity: 3.5,
-          metalness: 0,
-          roughness: 0.04,
-          transparent: orig.transparent ?? false,
-          opacity:     orig.opacity    ?? 1,
-        });
-        child.material = mat;
-        glows.push(mat);
-
-      } else {
-        // Classify body parts by original colour luminance
-        const r   = orig.color?.r ?? 0.5;
-        const g   = orig.color?.g ?? 0.5;
-        const b   = orig.color?.b ?? 0.5;
-        const lum = r * 0.299 + g * 0.587 + b * 0.114;
-        // Raised threshold: dark armor < 0.40, light skin >= 0.40
-        const isDark = lum < 0.40;
-
-        if (isDark) {
-          // ── Dark blue-grey gunmetal armour ────────────────
-          child.material = new THREE.MeshPhysicalMaterial({
-            color:              new THREE.Color('#22272f'),
-            metalness:          0.94,
-            roughness:          0.07,
-            clearcoat:          1.0,
-            clearcoatRoughness: 0.04,
-            reflectivity:       1.0,
-            envMapIntensity:    1.5,
-            map:       orig.map       ?? null,
-            normalMap: orig.normalMap ?? null,
-          });
-        } else {
-          // ── Smooth white ceramic skin / face ─────────────
-          child.material = new THREE.MeshPhysicalMaterial({
-            color:              new THREE.Color('#eaeaea'),
-            metalness:          0.0,
-            roughness:          0.14,
-            clearcoat:          0.9,
-            clearcoatRoughness: 0.06,
-            envMapIntensity:    0.6,
-            map:       orig.map       ?? null,
-            normalMap: orig.normalMap ?? null,
-          });
-        }
-      }
-    });
-
-    glowMaterials.current = glows;
-
+    // Centre + auto-scale
     const box = new THREE.Box3().setFromObject(clone);
     const centre = new THREE.Vector3();
     box.getCenter(centre);
@@ -276,71 +262,108 @@ function GLBScene({ scrollProg }) {
   useFrame(({ clock }) => {
     if (!groupRef.current) return;
     const t = clock.getElapsedTime();
-    groupRef.current.position.y = Math.sin(t * 0.9) * 0.1 - 0.50;
-    const ty = mouse.current.x * 0.18 + scrollProg.current * Math.PI * 1.5;
-    const tx = mouse.current.y * 0.14;
-    groupRef.current.rotation.y = THREE.MathUtils.lerp(groupRef.current.rotation.y, ty, 0.04);
+
+    // Float
+    groupRef.current.position.y = Math.sin(t * 0.8) * 0.12 - 0.30;
+
+    // Mouse + scroll tilt (same lerp factors as HeroModel)
+    const tx = mouse.current.y * 0.12;
+    const ty = mouse.current.x * 0.12 + scrollProg.current * Math.PI * 1.5;
     groupRef.current.rotation.x = THREE.MathUtils.lerp(groupRef.current.rotation.x, tx, 0.04);
+    groupRef.current.rotation.y = THREE.MathUtils.lerp(groupRef.current.rotation.y, ty, 0.04);
 
-    // Smoothly transition colors based on scroll progress
-    const p = Math.max(0, Math.min(0.999, scrollProg.current)) * (stepColors.length - 1);
+    // Scroll-driven glow color
+    const p = Math.max(0, Math.min(0.9999, scrollProg.current)) * (stepColors.length - 1);
     const idx1 = Math.floor(p);
-    const idx2 = idx1 + 1;
-    const fraction = p - idx1;
+    const idx2 = Math.min(idx1 + 1, stepColors.length - 1);
+    const col = new THREE.Color().lerpColors(stepColors[idx1], stepColors[idx2], p - idx1);
 
-    const activeColor = new THREE.Color();
-    activeColor.lerpColors(stepColors[idx1], stepColors[idx2], fraction);
-
-    // Update all glow materials in the model
-    glowMaterials.current.forEach((mat) => {
-      mat.color.copy(activeColor);
-      mat.emissive.copy(activeColor);
+    glowMatsRef.current.forEach((mat) => {
+      mat.color.copy(col);
+      mat.emissive.copy(col);
     });
-
-    if (pointLightRef.current) {
-      pointLightRef.current.color.copy(activeColor);
-    }
   });
 
   return (
     <group ref={groupRef}>
       <primitive object={cloned} />
-      <pointLight ref={pointLightRef} position={[0, -2, 3]} intensity={1.8} />
     </group>
   );
 }
 
-/* ─── Canvas wrapper ─────────────────────────────────────── */
+/* ─── Canvas — same settings as HeroModel ────────────────── */
 function RobotCanvas({ scrollProg }) {
   return (
     <Canvas
       camera={{ position: [0, 0, 4.2], fov: 42 }}
       dpr={[1, 1.5]}
-      gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
+      gl={{
+        antialias: true,
+        alpha: true,
+        powerPreference: 'high-performance',
+      }}
       onCreated={({ gl }) => {
         gl.toneMapping = THREE.ACESFilmicToneMapping;
-        gl.toneMappingExposure = 1.15;
+        gl.toneMappingExposure = 1.1;
         gl.outputColorSpace = THREE.SRGBColorSpace;
       }}
     >
-      {/* Soft neutral fill */}
-      <ambientLight intensity={0.45} color="#e8f0f8" />
-      {/* Main key light — slightly above-front, warm white */}
-      <directionalLight position={[2, 6, 5]}   intensity={2.8} color="#ffffff" castShadow />
-      {/* Rim light from upper-left, cool blue */}
-      <directionalLight position={[-5, 4, -3]} intensity={0.7} color="#b8d4ff" />
-      {/* Subtle warm bounce from below */}
-      <directionalLight position={[0, -3, 2]}  intensity={0.3} color="#fff8e8" />
+      <SceneEnvironment />
+
+      {/* Same lighting rig as HeroModel */}
+      <ambientLight intensity={0.25} color="#c8d8ff" />
+      <directionalLight position={[4, 8, 4]} intensity={1.6} color="#fff5e0" castShadow />
+      <directionalLight position={[-6, 2, -3]} intensity={0.6} color="#aac4ff" />
+      <directionalLight position={[0, -3, -6]} intensity={0.8} color="#3a7cff" />
+      <hemisphereLight args={['#c0d4ff', '#0a0a14', 0.15]} />
+
       <Suspense fallback={null}>
-        <GLBScene scrollProg={scrollProg} />
-        <Environment preset="studio" background={false} />
-        <ContactShadows position={[0, -1.35, 0]} opacity={0.4} scale={6} blur={3} far={4} color="#888" />
+        <group position={[-1, -0.3, 0]}>
+          <GLBScene scrollProg={scrollProg} />
+          <ContactShadows
+            position={[0, -1.35, 0]}
+            opacity={0.35}
+            scale={6}
+            blur={3}
+            far={4}
+            color="#888"
+          />
+        </group>
       </Suspense>
     </Canvas>
   );
 }
 
-/* ─── Spinner shown while Suspense resolves ──────────────── */
+/* ─── Image fallback (when GLB errors) ──────────────────── */
+function ImageFallback() {
+  return (
+    <div className="rs-image-stage" aria-hidden="true">
+      <div className="rs-image-glow" />
+      <div className="rs-image-tilt">
+        <img
+          src="/robot-head.png"
+          alt=""
+          className="rs-robot-img"
+          draggable="false"
+        />
+      </div>
+      <div className="rs-image-ground" />
+    </div>
+  );
+}
+
+/* ─── Error boundary ─────────────────────────────────────── */
+class CanvasErrorBoundary extends Component {
+  constructor(props) { super(props); this.state = { hasError: false }; }
+  static getDerivedStateFromError() { return { hasError: true }; }
+  render() {
+    return this.state.hasError
+      ? <ImageFallback />
+      : this.props.children;
+  }
+}
+
+/* ─── Spinner ────────────────────────────────────────────── */
 function Spinner() {
   return (
     <div className="rs-loader">
@@ -360,21 +383,9 @@ export default function RobotScrollSection() {
     const pin = pinRef.current;
     if (!wrap || !pin) return;
 
-    const texts = STEPS.map((s) => pin.querySelector(`.${s.cls}`));
-
-    // Hide all text blocks at start
+    const texts = STEPS.map(s => pin.querySelector(`.${s.cls}`));
     gsap.set(texts, { opacity: 0, y: 60 });
 
-    /*
-     * Timeline explanation
-     * ─────────────────────
-     * end: '+=300%' gives 3 full viewport-heights of scroll per pin.
-     * Total virtual duration = STEPS.length (4 units).
-     * Each step gets 1 unit:
-     *   [0 → 0.2]  fade-in  (opacity 0→1, y 60→0)
-     *   [0.2→0.7]  hold     (no change)
-     *   [0.7→1.0]  fade-out (opacity 1→0, y 0→-50)  ← skip on last
-     */
     const tl = gsap.timeline({
       scrollTrigger: {
         trigger: wrap,
@@ -396,14 +407,12 @@ export default function RobotScrollSection() {
       if (!el) return;
       const base = i * SLOT;
 
-      // Fade in
       tl.fromTo(el,
         { opacity: 0, y: 60 },
         { opacity: 1, y: 0, ease: 'power2.out', duration: IN_DUR },
         base
       );
 
-      // Fade out (not last step)
       if (i < STEPS.length - 1) {
         tl.to(el,
           { opacity: 0, y: -50, ease: 'power2.in', duration: OUT_DUR },
@@ -412,7 +421,6 @@ export default function RobotScrollSection() {
       }
     });
 
-    // Extra padding so last step stays visible at end of scroll
     tl.to({}, { duration: 0.4 });
 
     return () => {
@@ -429,16 +437,16 @@ export default function RobotScrollSection() {
         <div className="rs-bg-ring rs-ring-1" aria-hidden="true" />
         <div className="rs-bg-ring rs-ring-2" aria-hidden="true" />
 
-        {/* 3D Canvas — full viewport */}
+        {/* 3D Canvas */}
         <div className="rs-canvas-wrap" aria-hidden="true">
           <Suspense fallback={<Spinner />}>
-            <CanvasErrorBoundary scrollProg={scrollProg}>
+            <CanvasErrorBoundary>
               <RobotCanvas scrollProg={scrollProg} />
             </CanvasErrorBoundary>
           </Suspense>
         </div>
 
-        {/* Text blocks — right panel */}
+        {/* Text blocks */}
         <div className="rs-text-panel" aria-live="polite">
           {STEPS.map((step) => (
             <div key={step.cls} className={`rs-text-block ${step.cls}`}>
@@ -466,4 +474,4 @@ export default function RobotScrollSection() {
   );
 }
 
-useGLTF.preload('/3d-model/robo_face.glb');
+useGLTF.preload(GLB_URL);

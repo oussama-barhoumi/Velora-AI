@@ -6,6 +6,7 @@ import HeroSection from './components/HeroSection';
 import ScrollStorySection from './components/ScrollStorySection';
 import RobotScrollSection from './components/RobotScrollSection';
 import FeatureScrollSection from './components/FeatureScrollSection';
+import Footer from './components/Footer';
 
 
 
@@ -76,7 +77,7 @@ function App() {
         <ScrollStorySection />
         <FeatureScrollSection />
         <RobotScrollSection />
-
+        <Footer />
       </main>
     </>
   );

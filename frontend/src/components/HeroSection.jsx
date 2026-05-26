@@ -234,7 +234,7 @@ export default function HeroSection() {
           </motion.button>
 
           <motion.button
-            className="velora-btn velora-btn--secondary"
+            className="velora-btn1 "
             whileHover={{ y: -2 }}
             whileTap={{ scale: 0.98 }}
             id="btn-find-jobs"
